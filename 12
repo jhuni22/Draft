@@ -1,0 +1,65 @@
+import cv2
+import numpy as np
+from tkinter import Tk
+from tkinter.filedialog import askopenfilename
+import tensorflow as tf
+
+# Prompt the user to select an image file
+Tk().withdraw()
+filename = askopenfilename()
+
+# Load the image
+img = cv2.imread(filename)
+
+# Resize the image to match the expected input shape
+resized_img = cv2.resize(img, (320, 320))
+
+# Convert the image to float32 and normalize the pixel values
+input_image = resized_img.astype('float32') / 255.0
+
+# Expand dimensions to match the expected input shape
+input_image = tf.expand_dims(input_image, axis=0)
+
+# Load the pre-trained model
+model_path = r'C:\Users\Stephen\PycharmProjects\Draft\efficientdet_lite0_feature-vector_1'
+model = tf.saved_model.load(model_path)
+
+# Perform object detection
+@tf.function
+def detect_objects(image_tensor):
+    return model(image_tensor, training=False)
+
+detections = detect_objects(input_image)
+
+# Extract areas based on specific conditions
+confidence_threshold = 0.5
+class_label_to_extract = 1  # Replace with the desired class label (e.g., 1 for 'person')
+
+image_height, image_width, _ = img.shape
+num_detections = int(detections['num_detections'][0])
+detection_boxes = detections['detection_boxes'][0][:num_detections].numpy()
+detection_classes = detections['detection_classes'][0][:num_detections].numpy().astype(np.int32)
+detection_scores = detections['detection_scores'][0][:num_detections].numpy()
+
+for i in range(num_detections):
+    class_label = detection_classes[i]
+    confidence = detection_scores[i]
+
+    # Filter based on confidence score and class label
+    if confidence > confidence_threshold and class_label == class_label_to_extract:
+        ymin, xmin, ymax, xmax = detection_boxes[i]
+
+        # Convert bounding box coordinates from normalized values to pixel values
+        xmin = int(xmin * image_width)
+        xmax = int(xmax * image_width)
+        ymin = int(ymin * image_height)
+        ymax = int(ymax * image_height)
+
+        # Extract the area from the image
+        extracted_area = img[ymin:ymax, xmin:xmax]
+
+        # Display the extracted area
+        cv2.imshow(f"Extracted Area {i}", extracted_area)
+
+cv2.waitKey(0)
+cv2.destroyAllWindows()
